@@ -27,8 +27,18 @@ const client = new Client({
   partials: [Partials.Channel]
 });
 
+const welcomeChannels = new Map();
+
 const commands = [
   new SlashCommandBuilder().setName("panel").setDescription("Create ticket panel"),
+
+  new SlashCommandBuilder()
+    .setName("setwelcome")
+    .setDescription("Set welcome channel")
+    .addChannelOption(o =>
+      o.setName("channel").setDescription("Channel").setRequired(true)
+    ),
+
   new SlashCommandBuilder().setName("ban").setDescription("Ban a user").addUserOption(o => o.setName("user").setRequired(true)),
   new SlashCommandBuilder().setName("kick").setDescription("Kick a user").addUserOption(o => o.setName("user").setRequired(true)),
   new SlashCommandBuilder().setName("timeout").setDescription("Timeout a user").addUserOption(o => o.setName("user").setRequired(true)).addIntegerOption(o => o.setName("seconds").setRequired(true)),
@@ -55,6 +65,12 @@ client.on("interactionCreate", async interaction => {
   const logChannel = interaction.guild?.channels.cache.find(c => c.name === "kyra-logs");
 
   if (interaction.isChatInputCommand()) {
+
+    if (interaction.commandName === "setwelcome") {
+      const channel = interaction.options.getChannel("channel");
+      welcomeChannels.set(interaction.guild.id, channel.id);
+      return interaction.reply({ content: `Welcome channel set to ${channel}`, ephemeral: true });
+    }
 
     if (interaction.commandName === "panel") {
       const menu = new StringSelectMenuBuilder()
@@ -155,10 +171,13 @@ client.on("interactionCreate", async interaction => {
 });
 
 client.on("guildMemberAdd", member => {
-  const channel = member.guild.systemChannel;
+  const channelId = welcomeChannels.get(member.guild.id);
+  const channel = member.guild.channels.cache.get(channelId);
+
   if (channel) {
     channel.send("Welcome to CrystalSMP, We hope you enjoy your time here. Please enjoy");
   }
+
   getLogChannel(member.guild)?.send(`📥 ${member.user.tag} joined`);
 });
 
