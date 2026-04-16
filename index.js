@@ -1,4 +1,11 @@
-const { Client, GatewayIntentBits, Partials } = require("discord.js");
+const { 
+  Client, 
+  GatewayIntentBits, 
+  Partials, 
+  REST, 
+  Routes, 
+  SlashCommandBuilder 
+} = require("discord.js");
 
 const client = new Client({
   intents: [
@@ -10,19 +17,48 @@ const client = new Client({
   partials: [Partials.Channel]
 });
 
-// ===== READY =====
-client.once("ready", () => {
+// ===== SLASH COMMANDS =====
+const commands = [
+  new SlashCommandBuilder()
+    .setName("panel")
+    .setDescription("Create ticket panel")
+].map(cmd => cmd.toJSON());
+
+client.once("ready", async () => {
   console.log(`Logged in as ${client.user.tag}`);
+
+  const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
+
+  try {
+    await rest.put(
+      Routes.applicationGuildCommands(
+        client.user.id,
+        process.env.GUILD_ID
+      ),
+      { body: commands }
+    );
+
+    console.log("Instant slash commands loaded");
+  } catch (err) {
+    console.error(err);
+  }
 });
 
-// ===== WELCOME MESSAGE =====
+// ===== COMMAND HANDLER =====
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+
+  if (interaction.commandName === "panel") {
+    await interaction.reply("Ticket panel coming soon...");
+  }
+});
+
+// ===== WELCOME =====
 client.on("guildMemberAdd", (member) => {
   const channel = member.guild.systemChannel;
   if (!channel) return;
 
-  channel.send(
-    `Welcome to CrystalSMP, We hope you enjoy your time here. ${member}`
-  );
+  channel.send(`Welcome to CrystalSMP, We hope you enjoy your time here. ${member}`);
 });
 
 // ===== AUTOMOD =====
@@ -32,7 +68,6 @@ const userMessages = new Map();
 client.on("messageCreate", async (message) => {
   if (!message.guild || message.author.bot) return;
 
-  // Anti-Link
   if (linkRegex.test(message.content)) {
     await message.delete().catch(() => {});
     message.channel.send(`${message.author}, links are not allowed here.`)
@@ -40,7 +75,6 @@ client.on("messageCreate", async (message) => {
     return;
   }
 
-  // Anti-Caps
   if (message.content.length > 6) {
     const caps = message.content.replace(/[^A-Z]/g, "").length;
     if (caps / message.content.length > 0.7) {
@@ -51,7 +85,6 @@ client.on("messageCreate", async (message) => {
     }
   }
 
-  // Anti-Spam
   const now = Date.now();
   const timestamps = userMessages.get(message.author.id) || [];
 
@@ -65,5 +98,5 @@ client.on("messageCreate", async (message) => {
   }
 });
 
-// ===== LOGIN (RAILWAY TOKEN) =====
+// ===== LOGIN =====
 client.login(process.env.TOKEN);
