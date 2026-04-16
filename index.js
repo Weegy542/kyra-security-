@@ -17,7 +17,6 @@ const client = new Client({
   partials: [Partials.Channel]
 });
 
-// ===== SLASH COMMANDS =====
 const commands = [
   new SlashCommandBuilder()
     .setName("panel")
@@ -26,6 +25,9 @@ const commands = [
 
 client.once("ready", async () => {
   console.log(`Logged in as ${client.user.tag}`);
+
+  if (!process.env.TOKEN) return;
+  if (!process.env.GUILD_ID) return;
 
   const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
@@ -37,14 +39,11 @@ client.once("ready", async () => {
       ),
       { body: commands }
     );
-
-    console.log("Instant slash commands loaded");
   } catch (err) {
     console.error(err);
   }
 });
 
-// ===== COMMAND HANDLER =====
 client.on("interactionCreate", async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
@@ -53,7 +52,6 @@ client.on("interactionCreate", async (interaction) => {
   }
 });
 
-// ===== WELCOME =====
 client.on("guildMemberAdd", (member) => {
   const channel = member.guild.systemChannel;
   if (!channel) return;
@@ -61,7 +59,6 @@ client.on("guildMemberAdd", (member) => {
   channel.send(`Welcome to CrystalSMP, We hope you enjoy your time here. ${member}`);
 });
 
-// ===== AUTOMOD =====
 const linkRegex = /(https?:\/\/|www\.|discord\.gg)/gi;
 const userMessages = new Map();
 
@@ -98,5 +95,4 @@ client.on("messageCreate", async (message) => {
   }
 });
 
-// ===== LOGIN =====
 client.login(process.env.TOKEN);
