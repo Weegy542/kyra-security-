@@ -1,10 +1,15 @@
-const { 
-  Client, 
-  GatewayIntentBits, 
-  Partials, 
-  REST, 
-  Routes, 
-  SlashCommandBuilder 
+const {
+  Client,
+  GatewayIntentBits,
+  Partials,
+  REST,
+  Routes,
+  SlashCommandBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  Events,
+  PermissionsBitField
 } = require("discord.js");
 
 const client = new Client({
@@ -17,82 +22,152 @@ const client = new Client({
   partials: [Partials.Channel]
 });
 
+// 🔧 CHANGE THIS TO YOUR LOG CHANNEL NAME
+const LOG_CHANNEL_NAME = "kyra-logs";
+
 const commands = [
   new SlashCommandBuilder()
     .setName("panel")
     .setDescription("Create ticket panel")
 ].map(cmd => cmd.toJSON());
 
-client.once("ready", async () => {
-  console.log(`Logged in as ${client.user.tag}`);
+const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
 
-  if (!process.env.TOKEN) return;
-  if (!process.env.GUILD_ID) return;
-
-  const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
-
+// 🔥 REGISTER COMMANDS
+(async () => {
   try {
     await rest.put(
-      Routes.applicationGuildCommands(
-        client.user.id,
-        process.env.GUILD_ID
-      ),
+      Routes.applicationCommands("1494445442992443632"),
       { body: commands }
     );
+    console.log("Commands registered!");
   } catch (err) {
     console.error(err);
   }
 });
 
-client.on("interactionCreate", async (interaction) => {
+// ✅ READY
+client.once("ready", () => {
+  console.log(`Logged in as ${client.user.tag}`);
+});
+
+// 📊 LOG FUNCTION
+function sendLog(guild, message) {
+  const channel = guild.channels.cache.find(
+    c => c.name === LOG_CHANNEL_NAME
+  );
+  if (channel) channel.send(message);
+}
+
+// 🎫 PANEL
+client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName === "panel") {
-    await interaction.reply("Ticket panel coming soon...");
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder().setCustomId("support").setLabel("Support").setStyle(ButtonStyle.Primary),
+      new ButtonBuilder().setCustomId("report").setLabel("Player Report").setStyle(ButtonStyle.Danger),
+      new ButtonBuilder().setCustomId("staff").setLabel("Staff Report").setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder().setCustomId("partner").setLabel("Partnership").setStyle(ButtonStyle.Success),
+      new ButtonBuilder().setCustomId("test").setLabel("Tier Test").setStyle(ButtonStyle.Primary)
+    );
+
+    await interaction.reply({
+      content: "🎫 **Kyra Support Panel**\nSelect a ticket:",
+      components: [row]
+    });
   }
 });
 
-client.on("guildMemberAdd", (member) => {
-  const channel = member.guild.systemChannel;
-  if (!channel) return;
+// 🎫 BUTTONS (CREATE + CLOSE)
+client.on(Events.InteractionCreate, async interaction => {
+  if (!interaction.isButton()) return;
 
-  channel.send(`Welcome to CrystalSMP, We hope you enjoy your time here. ${member}`);
+  // CREATE TICKET
+  if (!interaction.customId.includes("close")) {
+    const channel = await interaction.guild.channels.create({
+      name: `ticket-${interaction.user.username}`,
+      type: 0,
+      permissionOverwrites: [
+        {
+          id: interaction.guild.id,
+          deny: [PermissionsBitField.Flags.ViewChannel]
+        },
+        {
+          id: interaction.user.id,
+          allow: [
+            PermissionsBitField.Flags.ViewChannel,
+            PermissionsBitField.Flags.SendMessages
+          ]
+        }
+      ]
+    });
+
+    const closeBtn = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("close_ticket")
+        .setLabel("Close Ticket")
+        .setStyle(ButtonStyle.Danger)
+    );
+
+    channel.send({
+      content: `🎫 Ticket opened by ${interaction.user}`,
+      components: [closeBtn]
+    });
+
+    sendLog(interaction.guild, `🎫 Ticket created by ${interaction.user.tag}`);
+
+    return interaction.reply({
+      content: `✅ Created: ${channel}`,
+      ephemeral: true
+    });
+  }
+
+  // CLOSE TICKET
+  if (interaction.customId === "close_ticket") {
+    sendLog(interaction.guild, `❌ Ticket closed by ${interaction.user.tag}`);
+
+    await interaction.reply({ content: "Closing ticket...", ephemeral: true });
+
+    setTimeout(() => {
+      interaction.channel.delete().catch(() => {});
+    }, 2000);
+  }
 });
 
-const linkRegex = /(https?:\/\/|www\.|discord\.gg)/gi;
-const userMessages = new Map();
+// 👋 JOIN LOG + WELCOME
+client.on("guildMemberAdd", member => {
+  const channel = member.guild.systemChannel;
+  if (channel) {
+    channel.send("Welcome to CrystalSMP, We hope you enjoy your time here.");
+  }
 
-client.on("messageCreate", async (message) => {
-  if (!message.guild || message.author.bot) return;
+  sendLog(member.guild, `📥 ${member.user.tag} joined`);
+});
+
+// 🚪 LEAVE LOG
+client.on("guildMemberRemove", member => {
+  sendLog(member.guild, `📤 ${member.user.tag} left`);
+});
+
+// 🗑️ DELETE LOG
+client.on("messageDelete", message => {
+  if (!message.guild || message.author?.bot) return;
+  sendLog(message.guild, `🗑️ Message deleted: ${message.content}`);
+});
+
+// 🚫 ANTI LINK
+client.on("messageCreate", message => {
+  if (message.author.bot) return;
+
+  const linkRegex = /(https?:\/\/|discord\.gg\/)/gi;
 
   if (linkRegex.test(message.content)) {
-    await message.delete().catch(() => {});
-    message.channel.send(`${message.author}, links are not allowed here.`)
-      .then(msg => setTimeout(() => msg.delete(), 5000));
-    return;
-  }
-
-  if (message.content.length > 6) {
-    const caps = message.content.replace(/[^A-Z]/g, "").length;
-    if (caps / message.content.length > 0.7) {
-      await message.delete().catch(() => {});
-      message.channel.send(`${message.author}, please don't spam caps.`)
-        .then(msg => setTimeout(() => msg.delete(), 5000));
-      return;
-    }
-  }
-
-  const now = Date.now();
-  const timestamps = userMessages.get(message.author.id) || [];
-
-  timestamps.push(now);
-  userMessages.set(message.author.id, timestamps.filter(t => now - t < 5000));
-
-  if (timestamps.length > 5) {
-    await message.delete().catch(() => {});
-    message.channel.send(`${message.author}, stop spamming.`)
-      .then(msg => setTimeout(() => msg.delete(), 5000));
+    message.delete().catch(() => {});
+    message.channel.send(`${message.author}, links are not allowed!`);
+    sendLog(message.guild, `🚫 Link deleted from ${message.author.tag}`);
   }
 });
 
+// 🔐 LOGIN
 client.login(process.env.TOKEN);
