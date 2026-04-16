@@ -14,7 +14,7 @@ const {
 } = require("discord.js");
 
 const TOKEN = process.env.TOKEN;
-const CLIENT_ID = process.env.CLIENT_ID;
+const CLIENT_ID = "1494445442992443632";
 const GUILD_ID = "859389888898400266";
 
 const client = new Client({
@@ -30,11 +30,15 @@ const commands = [
 
 const rest = new REST({ version: "10" }).setToken(TOKEN);
 
-client.once("clientReady", async () => {
+client.once("ready", async () => {
+  console.log("Registering commands...");
+
   await rest.put(
     Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
     { body: commands }
   );
+
+  console.log("Commands registered!");
 });
 
 client.on("interactionCreate", async interaction => {
@@ -56,7 +60,7 @@ client.on("interactionCreate", async interaction => {
       const row = new ActionRowBuilder().addComponents(menu);
 
       await interaction.reply({
-        content: "🎫 Select a ticket category:",
+        content: "Select a ticket category:",
         components: [row]
       });
     }
@@ -83,7 +87,7 @@ client.on("interactionCreate", async interaction => {
     const closeRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
         .setCustomId("close_ticket")
-        .setLabel("🔒 Close Ticket")
+        .setLabel("Close Ticket")
         .setStyle(ButtonStyle.Danger)
     );
 
